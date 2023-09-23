@@ -21,9 +21,9 @@ import PIL
 import torch
 from transformers import CLIPImageProcessor, CLIPTextModel, CLIPTokenizer
 
-from ...image_processor import VaeImageProcessorLDM3D, PipelineImageInput
+from ...image_processor import VaeImageProcessorLDM3D, PipelineImageInput, VaeImageProcessor
 from ...loaders import FromSingleFileMixin, LoraLoaderMixin, TextualInversionLoaderMixin
-from ...models import AutoencoderKL, UNet2DConditionModel
+from ...models import AutoencoderKL, UNet2DConditionModel, AsymmetricAutoencoderKL
 from ...models.lora import adjust_lora_scale_text_encoder
 from ...schedulers import KarrasDiffusionSchedulers
 from ...utils import (
@@ -487,11 +487,15 @@ class StableDiffusionLDM3DInpaintPipeline(
         prompt,
         height,
         width,
+        strength,
         callback_steps,
         negative_prompt=None,
         prompt_embeds=None,
         negative_prompt_embeds=None,
     ):
+        if strength < 0 or strength > 1:
+            raise ValueError(f"The value of strength should in [0.0, 1.0] but is {strength}")
+
         if height % 8 != 0 or width % 8 != 0:
             raise ValueError(f"`height` and `width` have to be divisible by 8 but are {height} and {width}.")
 
@@ -529,6 +533,19 @@ class StableDiffusionLDM3DInpaintPipeline(
                     f" {negative_prompt_embeds.shape}."
                 )
 
+    def _encode_vae_image(self, image: torch.Tensor, generator: torch.Generator):
+        if isinstance(generator, list):
+            image_latents = [
+                self.vae.encode(image[i : i + 1]).latent_dist.sample(generator=generator[i])
+                for i in range(image.shape[0])
+            ]
+            image_latents = torch.cat(image_latents, dim=0)
+        else:
+            image_latents = self.vae.encode(image).latent_dist.sample(generator=generator)
+
+        image_latents = self.vae.config.scaling_factor * image_latents
+
+        return image_latents
     def prepare_latents(self, 
         batch_size, 
         num_channels_latents, 
@@ -557,22 +574,24 @@ class StableDiffusionLDM3DInpaintPipeline(
                 "However, either the image or the noise timestep has not been provided."
             )
         
-        if latents is None:
-            latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
-        else:
-            latents = latents.to(device)
-
         if return_image_latents or (latents is None and not is_strength_max):
             image = image.to(device=device, dtype=dtype)
 
-            if image.shape[1] == 4:
+            if image.shape[1] == 8: # Should be 8 for image, depth
                 image_latents = image
             else:
                 image_latents = self._encode_vae_image(image=image, generator=generator)
             image_latents = image_latents.repeat(batch_size // image_latents.shape[0], 1, 1, 1)
         
-        # scale the initial noise by the standard deviation required by the scheduler
-        latents = latents * self.scheduler.init_noise_sigma
+        if latents is None:
+            noise = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
+            # if strength is 1. then initialise the latents to noise, else initial to image + noise
+            latents = noise if is_strength_max else self.scheduler.add_noise(image_latents, noise, timestep)
+            # if pure noise then scale the initial latents by the  Scheduler's init sigma
+            latents = latents * self.scheduler.init_noise_sigma if is_strength_max else latents
+        else:
+            latents = latents.to(device)
+            latents = latents * self.scheduler.init_noise_sigma
 
         outputs = (latents,)
 
@@ -584,6 +603,15 @@ class StableDiffusionLDM3DInpaintPipeline(
         
         return outputs
 
+    def get_timesteps(self, num_inference_steps, strength, device):
+        # get the original timestep using init_timestep
+        init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
+
+        t_start = max(num_inference_steps - init_timestep, 0)
+        timesteps = self.scheduler.timesteps[t_start * self.scheduler.order :]
+
+        return timesteps, num_inference_steps - t_start
+    
     @torch.no_grad()
     @replace_example_docstring(EXAMPLE_DOC_STRING)
     def __call__(
@@ -592,6 +620,7 @@ class StableDiffusionLDM3DInpaintPipeline(
         height: Optional[int] = None,
         width: Optional[int] = None,
         image: PipelineImageInput = None,#
+        depth_image: PipelineImageInput = None,#
         strength: float = 1.0, #
         mask_image: PipelineImageInput = None,#
         masked_image_latents: torch.FloatTensor = None,#
@@ -680,7 +709,7 @@ class StableDiffusionLDM3DInpaintPipeline(
 
         # 1. Check inputs. Raise error if not correct
         self.check_inputs(
-            prompt, height, width, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds
+            prompt, height, width, strength, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds
         )
         
         # 2. Define call parameters
@@ -717,24 +746,29 @@ class StableDiffusionLDM3DInpaintPipeline(
         # Prepare latent variables
         num_channels_latents = self.vae.config.latent_channels
         num_channels_unet = self.unet.config.in_channels
-        return_image_latents = num_channels_unet == 4
+        return_image_latents = num_channels_unet == 4 #maybe not?
 
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
-        timesteps = self.scheduler.timesteps
+        timesteps, num_inference_steps = self.get_timesteps(
+            num_inference_steps=num_inference_steps, strength=strength, device=device
+        )
 
-        
          # at which timestep to set the initial noise (n.b. 50% if strength is 0.5)
         latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
         # create a boolean to check if the strength is set to 1. if so then initialise the latents with pure noise
         is_strength_max = strength == 1.0
 
-        # 5. Preprocess mask and image
-        init_image = self.image_processor.preprocess(image, height=height, width=width)
-        init_image = init_image.to(dtype=torch.float32)
+        # 5. Preprocess mask and image. Image processor  is 6 channel, depth, and image?
+        init_image = self.mask_processor.preprocess(image, height=height, width=width)
+        init_depth = self.mask_processor.preprocess(depth_image, height=height, width=width)
+        init_concat = torch.cat([init_image, init_depth], dim=1)
+        init_concat = init_concat.to(dtype=torch.float32)
 
         # 5. Prepare latent variables
-        num_channels_latents = self.unet.config.in_channels
+        num_channels_latents = self.vae.config.latent_channels
+        num_channels_unet = self.unet.config.in_channels
+        return_image_latents = num_channels_unet == 4
 
         latent_outputs = self.prepare_latents(
             batch_size * num_images_per_prompt,
@@ -745,7 +779,7 @@ class StableDiffusionLDM3DInpaintPipeline(
             device,
             generator,
             latents,
-            image=init_image,
+            image=init_concat,
             timestep=latent_timestep,
             is_strength_max=is_strength_max,
             return_noise=True,
@@ -753,9 +787,9 @@ class StableDiffusionLDM3DInpaintPipeline(
         )
 
         if return_image_latents:
-            latents, noise, image_latents = latents_outputs
+            latents, noise, image_latents = latent_outputs
         else:
-            latents, noise = latents_outputs
+            latents, noise = latent_outputs
 
         # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
@@ -763,8 +797,9 @@ class StableDiffusionLDM3DInpaintPipeline(
         # 7. Prepare mask latent variables
         mask_condition = self.mask_processor.preprocess(mask_image, height=height, width=width)
 
+        #masked 8 channel image
         if masked_image_latents is None:
-            masked_image = init_image * (mask_condition < 0.5)
+            masked_image = init_concat * (mask_condition < 0.5)
         else:
             masked_image = masked_image_latents
 
@@ -819,7 +854,7 @@ class StableDiffusionLDM3DInpaintPipeline(
                     cross_attention_kwargs=cross_attention_kwargs,
                     return_dict=False,
                 )[0]
-
+            
                 # perform guidance
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
@@ -850,14 +885,7 @@ class StableDiffusionLDM3DInpaintPipeline(
                         callback(i, t, latents)
 
         if not output_type == "latent":
-            condition_kwargs = {}
-            if isinstance(self.vae, AsymmetricAutoencoderKL):
-                init_image = init_image.to(device=device, dtype=masked_image_latents.dtype)
-                init_image_condition = init_image.clone()
-                init_image = self._encode_vae_image(init_image, generator=generator)
-                mask_condition = mask_condition.to(device=device, dtype=masked_image_latents.dtype)
-                condition_kwargs = {"image": init_image_condition, "mask": mask_condition}
-            image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False, **condition_kwargs)[0]
+            image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
             image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
         else:
             image = latents
@@ -869,7 +897,6 @@ class StableDiffusionLDM3DInpaintPipeline(
             do_denormalize = [not has_nsfw for has_nsfw in has_nsfw_concept]
 
         rgb, depth = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
-
         # Offload all models
         self.maybe_free_model_hooks()
 
