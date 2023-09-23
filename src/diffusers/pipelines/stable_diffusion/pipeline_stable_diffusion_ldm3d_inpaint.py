@@ -21,7 +21,7 @@ import PIL
 import torch
 from transformers import CLIPImageProcessor, CLIPTextModel, CLIPTokenizer
 
-from ...image_processor import VaeImageProcessorLDM3D
+from ...image_processor import VaeImageProcessorLDM3D, PipelineImageInput
 from ...loaders import FromSingleFileMixin, LoraLoaderMixin, TextualInversionLoaderMixin
 from ...models import AutoencoderKL, UNet2DConditionModel
 from ...models.lora import adjust_lora_scale_text_encoder
@@ -156,6 +156,9 @@ class StableDiffusionLDM3DInpaintPipeline(
         )
         self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
         self.image_processor = VaeImageProcessorLDM3D(vae_scale_factor=self.vae_scale_factor)
+        self.mask_processor = VaeImageProcessor(
+            vae_scale_factor=self.vae_scale_factor, do_normalize=False, do_binarize=True, do_convert_grayscale=True
+        )
         self.register_to_config(requires_safety_checker=requires_safety_checker)
 
     # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.enable_vae_slicing
@@ -778,6 +781,7 @@ class StableDiffusionLDM3DInpaintPipeline(
         )
 
         # 8. Check that sizes of mask, masked image and latents match
+        # Imagen 4 canales, mascara 1 canal, imagen enmascarada 4 canales
         if num_channels_unet == 9:
             # default case for runwayml/stable-diffusion-inpainting
             num_channels_mask = mask.shape[1]
