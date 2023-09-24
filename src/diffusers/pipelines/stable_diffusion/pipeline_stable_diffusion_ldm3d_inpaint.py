@@ -549,6 +549,7 @@ class StableDiffusionLDM3DInpaintPipeline(
         image_latents = self.vae.config.scaling_factor * image_latents
 
         return image_latents
+    
     def prepare_latents(self, 
         batch_size, 
         num_channels_latents, 
@@ -580,7 +581,7 @@ class StableDiffusionLDM3DInpaintPipeline(
         if return_image_latents or (latents is None and not is_strength_max):
             image = image.to(device=device, dtype=dtype)
 
-            if image.shape[1] == 4 and image.shape[2] != width: # Should be 8 for image, depth
+            if image.shape[1] == 4 and image.shape[2] != width:
                 image_latents = image
             else:
                 image_latents = self._encode_vae_image(image=image, generator=generator)
@@ -710,6 +711,8 @@ class StableDiffusionLDM3DInpaintPipeline(
         height = height or self.unet.config.sample_size * self.vae_scale_factor
         width = width or self.unet.config.sample_size * self.vae_scale_factor
 
+        start_image = image
+
         # 1. Check inputs. Raise error if not correct
         self.check_inputs(
             prompt, height, width, strength, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds
@@ -749,7 +752,7 @@ class StableDiffusionLDM3DInpaintPipeline(
         # Prepare latent variables
         num_channels_latents = self.vae.config.latent_channels
         num_channels_unet = self.unet.config.in_channels
-        return_image_latents = num_channels_unet == 4 #maybe not?
+        return_image_latents = num_channels_unet == 4
 
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
@@ -800,7 +803,7 @@ class StableDiffusionLDM3DInpaintPipeline(
         # 7. Prepare mask latent variables
         mask_condition = self.mask_processor.preprocess(mask_image, height=height, width=width)
 
-        #masked 8 channel image
+
         if masked_image_latents is None:
             masked_image = init_concat * (mask_condition < 0.5)
         else:
@@ -836,7 +839,7 @@ class StableDiffusionLDM3DInpaintPipeline(
             raise ValueError(
                 f"The unet {self.unet.__class__} should have either 4 or 9 input channels, not {self.unet.config.in_channels}."
             )
-        
+
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
         with self.progress_bar(total=num_inference_steps) as progress_bar:
@@ -866,6 +869,7 @@ class StableDiffusionLDM3DInpaintPipeline(
                 # compute the previous noisy sample x_t -> x_t-1
                 latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
 
+                # Restrict to change masked section only (model not finetuned for inpainting)
                 if num_channels_unet == 4:
                     init_latents_proper = image_latents
                     if do_classifier_free_guidance:
@@ -900,10 +904,15 @@ class StableDiffusionLDM3DInpaintPipeline(
             do_denormalize = [not has_nsfw for has_nsfw in has_nsfw_concept]
 
         rgb, depth = self.image_processor_3d.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
+        
+        #mask = mask_condition[0][0].cpu().numpy()
+        #canvas = np.array(rgb[0])
+        #canvas[mask==0] = np.array(start_image)[mask==0]
+        #rgb = [PIL.Image.fromarray(canvas)]
         # Offload all models
         self.maybe_free_model_hooks()
 
         if not return_dict:
             return ((rgb, depth), has_nsfw_concept)
-
+        
         return LDM3DPipelineOutput(rgb=rgb, depth=depth, nsfw_content_detected=has_nsfw_concept)
