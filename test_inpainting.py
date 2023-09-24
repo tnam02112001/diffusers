@@ -4,9 +4,9 @@ import numpy as np
 from diffusers import UNet2DConditionModel
 
 # Cargar con weights inicializados random
-#unet = UNet2DConditionModel.from_pretrained("Intel/ldm3d-4c", cache_dir="cache", subfolder="unet", in_channels=9, low_cpu_mem_usage=False, ignore_mismatched_sizes=True)
+unet = UNet2DConditionModel.from_pretrained("Intel/ldm3d-4c", cache_dir="cache", subfolder="unet", in_channels=9, low_cpu_mem_usage=False, ignore_mismatched_sizes=True)
 
-pipe = StableDiffusionLDM3DInpaintPipeline.from_pretrained("Intel/ldm3d-4c", cache_dir="cache") #, unet=unet)
+pipe = StableDiffusionLDM3DInpaintPipeline.from_pretrained("Intel/ldm3d-4c", cache_dir="cache" , unet=unet)
 
 pipe = pipe.to("cuda")
 
