@@ -389,6 +389,49 @@ class VaeImageProcessorLDM3D(VaeImageProcessor):
     ):
         super().__init__()
 
+    def get_default_height_width(
+        self,
+        image: [PIL.Image.Image, np.ndarray, torch.Tensor],
+        height: Optional[int] = None,
+        width: Optional[int] = None,
+    ):
+        """
+        This function return the height and width that are downscaled to the next integer multiple of
+        `vae_scale_factor`.
+
+        Args:
+            image(`PIL.Image.Image`, `np.ndarray` or `torch.Tensor`):
+                The image input, can be a PIL image, numpy array or pytorch tensor. if it is a numpy array, should have
+                shape `[batch, height, width]` or `[batch, height, width, channel]` if it is a pytorch tensor, should
+                have shape `[batch, channel, height, width]`.
+            height (`int`, *optional*, defaults to `None`):
+                The height in preprocessed image. If `None`, will use the height of `image` input.
+            width (`int`, *optional*`, defaults to `None`):
+                The width in preprocessed. If `None`, will use the width of the `image` input.
+        """
+
+        if height is None:
+            if isinstance(image, PIL.Image.Image):
+                height = image.height
+            elif isinstance(image, torch.Tensor):
+                height = image.shape[2]
+            else:
+                height = image.shape[1]
+
+        if width is None:
+            if isinstance(image, PIL.Image.Image):
+                width = image.width
+            elif isinstance(image, torch.Tensor):
+                width = image.shape[3]
+            else:
+                width = image.shape[2]
+
+        width, height = (
+            x - x % self.config.vae_scale_factor for x in (width, height)
+        )  # resize to integer multiple of vae_scale_factor
+
+        return height, width
+
     @staticmethod
     def numpy_to_pil(images):
         """
@@ -416,6 +459,14 @@ class VaeImageProcessorLDM3D(VaeImageProcessor):
         """
         return image[:, :, 1] * 2**8 + image[:, :, 2]
 
+    @staticmethod
+    def depthmap_to_rgblike(depthmap):
+        depthmap = depthmap.astype(np.uint16)
+        r = np.zeros_like(depthmap, dtype=np.uint8)
+        g = (depthmap // 2**8) % 2**8
+        b = depthmap % 2**8
+        return np.stack([r, g, b], axis=-1).astype(np.uint8)
+
     def numpy_to_depth(self, images):
         """
         Convert a NumPy depth image or a batch of images to a PIL image.
@@ -435,6 +486,19 @@ class VaeImageProcessorLDM3D(VaeImageProcessor):
             raise Exception("Not supported")
 
         return pil_images
+
+    def preprocess_depth(self, image, height=None, width=None):
+        image = np.array(image)
+        image = image / 65535.0
+        image = image[None, ...]
+
+        if self.config.do_resize:
+            height, width = self.get_default_height_width(image, height, width)
+            image = self.resize(image, height, width)
+
+        image = torch.from_numpy(image.transpose(0, 3, 1, 2))
+
+        return image        
 
     def postprocess(
         self,

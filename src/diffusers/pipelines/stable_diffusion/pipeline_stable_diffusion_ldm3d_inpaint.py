@@ -155,7 +155,10 @@ class StableDiffusionLDM3DInpaintPipeline(
             feature_extractor=feature_extractor,
         )
         self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
-        self.image_processor = VaeImageProcessorLDM3D(vae_scale_factor=self.vae_scale_factor)
+        self.image_processor_3d = VaeImageProcessorLDM3D(vae_scale_factor=self.vae_scale_factor)
+        self.image_processor = VaeImageProcessor(
+            vae_scale_factor=self.vae_scale_factor, do_normalize=False, do_binarize=False, do_convert_grayscale=False
+        )
         self.mask_processor = VaeImageProcessor(
             vae_scale_factor=self.vae_scale_factor, do_normalize=False, do_binarize=True, do_convert_grayscale=True
         )
@@ -416,7 +419,7 @@ class StableDiffusionLDM3DInpaintPipeline(
 
         masked_image = masked_image.to(device=device, dtype=dtype)
 
-        if masked_image.shape[1] == 4:
+        if masked_image.shape[1] == 4 and masked_image.shape[2] != width:
             masked_image_latents = masked_image
         else:
             masked_image_latents = self._encode_vae_image(masked_image, generator=generator)
@@ -453,9 +456,9 @@ class StableDiffusionLDM3DInpaintPipeline(
             has_nsfw_concept = None
         else:
             if torch.is_tensor(image):
-                feature_extractor_input = self.image_processor.postprocess(image, output_type="pil")
+                feature_extractor_input = self.image_processor_3d.postprocess(image, output_type="pil")
             else:
-                feature_extractor_input = self.image_processor.numpy_to_pil(image)
+                feature_extractor_input = self.image_processor_3d.numpy_to_pil(image)
             rgb_feature_extractor_input = feature_extractor_input[0]
             safety_checker_input = self.feature_extractor(rgb_feature_extractor_input, return_tensors="pt").to(device)
             image, has_nsfw_concept = self.safety_checker(
@@ -577,7 +580,7 @@ class StableDiffusionLDM3DInpaintPipeline(
         if return_image_latents or (latents is None and not is_strength_max):
             image = image.to(device=device, dtype=dtype)
 
-            if image.shape[1] == 8: # Should be 8 for image, depth
+            if image.shape[1] == 4 and image.shape[2] != width: # Should be 8 for image, depth
                 image_latents = image
             else:
                 image_latents = self._encode_vae_image(image=image, generator=generator)
@@ -760,8 +763,8 @@ class StableDiffusionLDM3DInpaintPipeline(
         is_strength_max = strength == 1.0
 
         # 5. Preprocess mask and image. Image processor  is 6 channel, depth, and image?
-        init_image = self.mask_processor.preprocess(image, height=height, width=width)
-        init_depth = self.mask_processor.preprocess(depth_image, height=height, width=width)
+        init_image = self.image_processor.preprocess(image, height=height, width=width)
+        init_depth = self.image_processor_3d.preprocess_depth(depth_image, height=height, width=width)
         init_concat = torch.cat([init_image, init_depth], dim=1)
         init_concat = init_concat.to(dtype=torch.float32)
 
@@ -833,7 +836,7 @@ class StableDiffusionLDM3DInpaintPipeline(
             raise ValueError(
                 f"The unet {self.unet.__class__} should have either 4 or 9 input channels, not {self.unet.config.in_channels}."
             )
-
+        
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
         with self.progress_bar(total=num_inference_steps) as progress_bar:
@@ -896,7 +899,7 @@ class StableDiffusionLDM3DInpaintPipeline(
         else:
             do_denormalize = [not has_nsfw for has_nsfw in has_nsfw_concept]
 
-        rgb, depth = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
+        rgb, depth = self.image_processor_3d.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
         # Offload all models
         self.maybe_free_model_hooks()
 
