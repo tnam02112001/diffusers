@@ -948,10 +948,15 @@ def main():
 
         for _ in range(batch_size-1):
             mask_temp = mask_generator.sample()
+                # rng 20% mask everything
+            if random.random() < 0.2:
+                mask_temp = np.ones_like(mask_temp)
+            
             mask = np.concatenate((mask, mask_temp), axis=2)
 
         mask = torch.from_numpy(mask).float()
         mask = np.expand_dims(mask, axis=0).transpose(3, 0, 1, 2)
+        
         return torch.from_numpy(mask).float()
 
     for epoch in range(first_epoch, args.num_train_epochs):
