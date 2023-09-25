@@ -308,7 +308,7 @@ def parse_args():
         help="whether to randomly flip images horizontally",
     )
     parser.add_argument(
-        "--train_batch_size", type=int, default=1, help="Batch size (per device) for the training dataloader."
+        "--train_batch_size", type=int, default=2, help="Batch size (per device) for the training dataloader."
     )
     parser.add_argument("--num_train_epochs", type=int, default=100)
     parser.add_argument(
@@ -921,36 +921,37 @@ def main():
     else:
         transform_midas = midas_transforms.small_transform
 
-    def estimate_depth(image):
+    def estimate_depth(images):
         # Transform back to image to estimate depth, should be a better way to do this (gpu -> cpu -> gpu)
-        #image = (image / 2.0) + 0.5 # invert normalize
-        image = image[0].permute(1,2,0).cpu().numpy()
-        image = (image * 255).astype(np.uint8)
-        input_batch = transform_midas(image).to(accelerator.device)
+        #images = (images / 2.0) + 0.5 # invert normalize
+        images=  [(image.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8) for image in images]
+        input_batch = torch.stack([transform_midas(image)[0] for image in images]).to("cuda:0")
 
         with torch.no_grad():
             prediction = midas(input_batch)
-
             prediction = torch.nn.functional.interpolate(
                 prediction.unsqueeze(1),
-                size=image.shape[:2],
+                size=images[0].shape[0:2],
                 mode="bicubic",
                 align_corners=False,
-            ).squeeze()
-        
+            )
         # Normalize again
-        prediction = (prediction - prediction.min()) / (prediction.max() - prediction.min()) # Does it need to be -1 to 1?
+        prediction = (prediction - prediction.min()) / (prediction.max() - prediction.min() ) # Does it need to be -1 to 1?
         
-        # 1, 1, W, H
-        return prediction[None][None]
+        return prediction
 
     # Mask generator
     mask_generator = MaskGenerator(args.resolution, args.resolution, channels=1)
 
-    def generate_mask():
+    def generate_mask(batch_size=1):
         mask = mask_generator.sample()
+
+        for _ in range(batch_size-1):
+            mask_temp = mask_generator.sample()
+            mask = np.concatenate((mask, mask_temp), axis=2)
+
         mask = torch.from_numpy(mask).float()
-        mask = np.expand_dims(mask, axis=0).transpose(0, 3, 1, 2)
+        mask = np.expand_dims(mask, axis=0).transpose(3, 0, 1, 2)
         return torch.from_numpy(mask).float()
 
     for epoch in range(first_epoch, args.num_train_epochs):
@@ -972,7 +973,7 @@ def main():
                     continue
                     
                 depth = estimate_depth(image)
-                mask_condition = generate_mask().to(weight_dtype).to(accelerator.device)
+                mask_condition = generate_mask(batch_size = image.shape[0]).to(weight_dtype).to(accelerator.device)
 
                 mask = torch.nn.functional.interpolate(
                     mask_condition, size=(64, 64)
