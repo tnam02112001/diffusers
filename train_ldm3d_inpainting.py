@@ -777,7 +777,7 @@ def main():
             transforms.Resize(args.resolution, interpolation=transforms.InterpolationMode.BILINEAR),
             transforms.CenterCrop(args.resolution) if args.center_crop else transforms.RandomCrop(args.resolution),
             transforms.RandomHorizontalFlip() if args.random_flip else transforms.Lambda(lambda x: x),
-            transforms.ToTensor(),
+            transforms.ToTensor()
             #transforms.Normalize([0.5], [0.5])
         ]
     )
@@ -918,7 +918,7 @@ def main():
 
     def estimate_depth(image):
         # Transform back to image to estimate depth, should be a better way to do this (gpu -> cpu -> gpu)
-        image = (image / 2.0) + 0.5 # invert normalize
+        #image = (image / 2.0) + 0.5 # invert normalize
         image = image[0].permute(1,2,0).cpu().numpy()
         image = (image * 255).astype(np.uint8)
         input_batch = transform_midas(image).to(accelerator.device)
@@ -1041,7 +1041,7 @@ def main():
                 # Gather the losses across all processes for logging (if we use distributed training).
                 avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
                 train_loss += avg_loss.item() / args.gradient_accumulation_steps
-                
+
                 # Backpropagate
                 accelerator.backward(loss)
                 if accelerator.sync_gradients:
