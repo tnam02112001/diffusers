@@ -972,7 +972,7 @@ def main():
                     print("Image is black, skipping")
                     continue
                     
-                depth = estimate_depth(image)
+                depth = estimate_depth(image).to(weight_dtype)
                 mask_condition = generate_mask(batch_size = image.shape[0]).to(weight_dtype).to(accelerator.device)
 
                 mask = torch.nn.functional.interpolate(
