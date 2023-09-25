@@ -649,7 +649,10 @@ def main():
                     model.save_pretrained(os.path.join(output_dir, "unet"))
 
                     # make sure to pop weight so that corresponding model is not saved again
-                    weights.pop()
+                    try:
+                        weights.pop()
+                    except:
+                        print("could not pop weight")
 
         def load_model_hook(models, input_dir):
             if args.use_ema:
