@@ -257,7 +257,7 @@ def parse_args():
     parser.add_argument(
         "--max_train_samples",
         type=int,
-        default=100,
+        default=None,
         help=(
             "For debugging purposes or quicker training, truncate the number of training examples to this "
             "value if set."
@@ -783,9 +783,9 @@ def main():
             #transforms.Normalize([0.5], [0.5])
         ]
     )
-    def get_image_from_url(url):
+    def get_image_from_url(url, timeout=5):
         try:
-            return Image.open(requests.get(url, stream=True).raw).convert("RGB")
+            return Image.open(requests.get(url, stream=True, timeout=timeout).raw).convert("RGB")
         except:
             return Image.new("RGB", (args.resolution, args.resolution), (0, 0, 0))
     
@@ -967,8 +967,8 @@ def main():
                 # Convert images to latent space
                 image = batch["pixel_values"].to(weight_dtype)
 
-                if image == np.zeros(image.shape):
-                    print("Image is none, skipping")
+                if (image == 0).all():
+                    print("Image is black, skipping")
                     continue
                     
                 depth = estimate_depth(image)
