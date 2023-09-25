@@ -787,7 +787,7 @@ def main():
         try:
             return Image.open(requests.get(url, stream=True).raw).convert("RGB")
         except:
-            return None
+            return Image.new("RGB", (args.resolution, args.resolution), (0, 0, 0))
     
     def preprocess_train(examples):
         images = [get_image_from_url(image) for image in examples[image_column]]
@@ -966,8 +966,8 @@ def main():
             with accelerator.accumulate(unet):
                 # Convert images to latent space
                 image = batch["pixel_values"].to(weight_dtype)
-                
-                if image == None:
+
+                if image == np.zeros(image.shape):
                     print("Image is none, skipping")
                     continue
                     
