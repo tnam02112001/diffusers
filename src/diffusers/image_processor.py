@@ -495,7 +495,8 @@ class VaeImageProcessorLDM3D(VaeImageProcessor):
         if self.config.do_resize:
             height, width = self.get_default_height_width(image, height, width)
             image = self.resize(image, height, width)
-
+        
+        image = 2* (image - 0.5 )
         image = torch.from_numpy(image.transpose(0, 3, 1, 2))
 
         return image        

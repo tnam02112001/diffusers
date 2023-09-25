@@ -157,7 +157,7 @@ class StableDiffusionLDM3DInpaintPipeline(
         self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
         self.image_processor_3d = VaeImageProcessorLDM3D(vae_scale_factor=self.vae_scale_factor)
         self.image_processor = VaeImageProcessor(
-            vae_scale_factor=self.vae_scale_factor, do_normalize=False, do_binarize=False, do_convert_grayscale=False
+            vae_scale_factor=self.vae_scale_factor, do_normalize=True, do_binarize=False, do_convert_grayscale=False
         )
         self.mask_processor = VaeImageProcessor(
             vae_scale_factor=self.vae_scale_factor, do_normalize=False, do_binarize=True, do_convert_grayscale=True

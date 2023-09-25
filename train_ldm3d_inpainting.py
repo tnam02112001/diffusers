@@ -779,8 +779,8 @@ def main():
             transforms.Resize(args.resolution, interpolation=transforms.InterpolationMode.BILINEAR),
             transforms.CenterCrop(args.resolution) if args.center_crop else transforms.RandomCrop(args.resolution),
             transforms.RandomHorizontalFlip() if args.random_flip else transforms.Lambda(lambda x: x),
-            transforms.ToTensor()
-            #transforms.Normalize([0.5], [0.5])
+            transforms.ToTensor(),
+            transforms.Normalize([0.5], [0.5])
         ]
     )
     def get_image_from_url(url, timeout=5):
@@ -937,7 +937,7 @@ def main():
             )
         # Normalize again
         prediction = (prediction - prediction.min()) / (prediction.max() - prediction.min() ) # Does it need to be -1 to 1?
-        
+        prediction = 2* (prediction - 0.5 )
         return prediction
 
     # Mask generator
