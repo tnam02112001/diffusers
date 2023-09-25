@@ -20,7 +20,6 @@ import os
 import random
 import shutil
 from pathlib import Path
-import requests
 
 import accelerate
 import datasets
@@ -57,6 +56,9 @@ if is_wandb_available():
 from gen_mask import MaskGenerator
 from PIL import Image
 import urllib.request
+
+import concurrent.futures
+import requests
 
 
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
@@ -255,7 +257,7 @@ def parse_args():
     parser.add_argument(
         "--max_train_samples",
         type=int,
-        default=None,
+        default=100,
         help=(
             "For debugging purposes or quicker training, truncate the number of training examples to this "
             "value if set."
@@ -781,25 +783,18 @@ def main():
             #transforms.Normalize([0.5], [0.5])
         ]
     )
-        
     def get_image_from_url(url):
         try:
             return Image.open(requests.get(url, stream=True).raw).convert("RGB")
         except:
             return None
-
+    
     def preprocess_train(examples):
         images = [get_image_from_url(image) for image in examples[image_column]]
-        pixel_values = []
-        input_ids = []
-        for i, image in enumerate(images):
-            if image is not None:
-                pixel_values.append(train_transforms(image))
-                input_ids.append(tokenize_captions(examples)[i])
-        examples["pixel_values"] = pixel_values
-        examples["input_ids"] = input_ids
+        examples["pixel_values"] = [train_transforms(image) for image in images]
+        examples["input_ids"] = tokenize_captions(examples)
         return examples
-
+    
     with accelerator.main_process_first():
         if args.max_train_samples is not None:
             dataset["train"] = dataset["train"].shuffle(seed=args.seed).select(range(args.max_train_samples))
@@ -968,10 +963,14 @@ def main():
                     progress_bar.update(1)
                 continue
             
-            # TODO: Add random mask and depth map and input them to the model
             with accelerator.accumulate(unet):
                 # Convert images to latent space
                 image = batch["pixel_values"].to(weight_dtype)
+                
+                if image == None:
+                    print("Image is none, skipping")
+                    continue
+                    
                 depth = estimate_depth(image)
                 mask_condition = generate_mask().to(weight_dtype).to(accelerator.device)
 
