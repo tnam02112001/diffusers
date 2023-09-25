@@ -781,13 +781,23 @@ def main():
             #transforms.Normalize([0.5], [0.5])
         ]
     )
+        
     def get_image_from_url(url):
-        return Image.open(requests.get(url, stream=True).raw).convert("RGB")
-    
+        try:
+            return Image.open(requests.get(url, stream=True).raw).convert("RGB")
+        except:
+            return None
+
     def preprocess_train(examples):
         images = [get_image_from_url(image) for image in examples[image_column]]
-        examples["pixel_values"] = [train_transforms(image) for image in images]
-        examples["input_ids"] = tokenize_captions(examples)
+        pixel_values = []
+        input_ids = []
+        for i, image in enumerate(images):
+            if image is not None:
+                pixel_values.append(train_transforms(image))
+                input_ids.append(tokenize_captions(examples)[i])
+        examples["pixel_values"] = pixel_values
+        examples["input_ids"] = input_ids
         return examples
 
     with accelerator.main_process_first():
