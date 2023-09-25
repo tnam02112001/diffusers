@@ -944,7 +944,10 @@ def main():
     mask_generator = MaskGenerator(args.resolution, args.resolution, channels=1)
 
     def generate_mask(batch_size=1):
+        
         mask = mask_generator.sample()
+        if random.random() < 0.2:
+            mask = np.zeros_like(mask)
 
         for _ in range(batch_size-1):
             mask_temp = mask_generator.sample()
@@ -952,9 +955,9 @@ def main():
             if random.random() < 0.2:
                 mask_temp = np.zeros_like(mask_temp)
             
-            mask = 1- np.concatenate((mask, mask_temp), axis=2)
+            mask = np.concatenate((mask, mask_temp), axis=2)
 
-        mask = torch.from_numpy(mask).float()
+        mask = torch.from_numpy(1- mask).float()
         mask = np.expand_dims(mask, axis=0).transpose(3, 0, 1, 2)
         
         return torch.from_numpy(mask).float()
