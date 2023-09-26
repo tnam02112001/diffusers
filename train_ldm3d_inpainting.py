@@ -965,7 +965,7 @@ def main():
         
         return torch.from_numpy(mask).float()
 
-    debug = True
+    debug = False
 
     def tensor_to_image(tensor):
         image_save = (tensor[0].permute(1,2,0).cpu().numpy() * 255).astype(np.uint8)
@@ -992,7 +992,7 @@ def main():
                 if (image.cpu().numpy() == 0).all() or (image.cpu().numpy() == -1).all():
                     print("Image is black, skipping")
                     continue
-
+                    
                 depth = estimate_depth(image).to(weight_dtype)
 
 
@@ -1036,8 +1036,11 @@ def main():
                 # (this is the forward diffusion process)
                 if args.input_perturbation:
                     noisy_latents = noise_scheduler.add_noise(latents, new_noise, timesteps)
+                    noisy_masked_image_latents = noise_scheduler.add_noise(masked_image_latents, new_noise, timesteps)
                 else:
                     noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+                    noisy_masked_image_latents = noise_scheduler.add_noise(masked_image_latents, noise, timesteps)
+
 
                 # Get the text embedding for conditioning
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0]
@@ -1054,7 +1057,9 @@ def main():
                 else:
                     raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
 
-                latent_inputs  = torch.cat([noisy_latents, mask, masked_image_latents], dim=1)
+                # Q: We input noisy masked_image_latents or not?
+                
+                latent_inputs  = torch.cat([noisy_latents, mask, noisy_masked_image_latents], dim=1)
                 # Predict the noise residual and compute loss
                 model_pred = unet(latent_inputs, timesteps, encoder_hidden_states).sample
 
