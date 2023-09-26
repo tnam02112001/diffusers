@@ -308,7 +308,7 @@ def parse_args():
         help="whether to randomly flip images horizontally",
     )
     parser.add_argument(
-        "--train_batch_size", type=int, default=2, help="Batch size (per device) for the training dataloader."
+        "--train_batch_size", type=int, default=1, help="Batch size (per device) for the training dataloader."
     )
     parser.add_argument("--num_train_epochs", type=int, default=100)
     parser.add_argument(
@@ -965,6 +965,16 @@ def main():
         
         return torch.from_numpy(mask).float()
 
+    debug = True
+
+    def tensor_to_image(tensor):
+        image_save = (tensor[0].permute(1,2,0).cpu().numpy() * 255).astype(np.uint8)
+        if image_save.shape[2]==1:
+            image_save = image_save.repeat(3, axis=2)
+        return Image.fromarray(image_save)
+    
+
+
     for epoch in range(first_epoch, args.num_train_epochs):
         unet.train()
         train_loss = 0.0
@@ -979,16 +989,25 @@ def main():
                 # Convert images to latent space
                 image = batch["pixel_values"].to(weight_dtype)
 
-                if (image == 0).all():
+                if (image.cpu().numpy() == 0).all() or (image.cpu().numpy() == -1).all():
                     print("Image is black, skipping")
                     continue
-                    
+
                 depth = estimate_depth(image).to(weight_dtype)
+
+
                 mask_condition = generate_mask(batch_size = image.shape[0]).to(weight_dtype).to(accelerator.device)
 
                 mask = torch.nn.functional.interpolate(
                     mask_condition, size=(64, 64)
                 )
+
+                # debug images
+                if debug:
+                    image = (image / 2.0) + 0.5
+                    tensor_to_image(image).save(f"image_{epoch}_{step}.png")
+                    tensor_to_image(depth).save(f"depth_{epoch}_{step}.png")
+                    tensor_to_image(mask_condition).save(f"mask_condition_{epoch}_{step}.png")
 
                 init_concat = torch.cat([image, depth], dim=1)
 
