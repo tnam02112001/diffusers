@@ -914,7 +914,7 @@ def main():
     image_processor_3d = VaeImageProcessorLDM3D()
 
     # MIDAS depth estimation
-    model_type = "DPT_Hybrid"
+    model_type = "DPT_Large"
     midas = torch.hub.load("intel-isl/MiDaS", model_type)
     midas.to(accelerator.device)
     midas.eval()
@@ -926,10 +926,10 @@ def main():
 
     def estimate_depth(images):
         # Transform back to image to estimate depth, should be a better way to do this (gpu -> cpu -> gpu)
-        #images = (images / 2.0) + 0.5 # invert normalize
+        images = (images / 2.0) + 0.5 # invert normalize
         images=  [(image.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8) for image in images]
         input_batch = torch.stack([transform_midas(image)[0] for image in images]).to("cuda:0")
-
+        
         with torch.no_grad():
             prediction = midas(input_batch)
             prediction = torch.nn.functional.interpolate(
