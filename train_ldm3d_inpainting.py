@@ -50,7 +50,7 @@ from src.diffusers.utils.import_utils import is_xformers_available
 from src.diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_ldm3d_inpaint import StableDiffusionLDM3DInpaintPipeline
 from src.diffusers.image_processor import VaeImageProcessorLDM3D
 
-from transformers import DPTImageProcessor, DPTForDepthEstimation
+from midas.api import MiDaSInference
 
 if is_wandb_available():
     import wandb
@@ -916,31 +916,26 @@ def main():
     image_processor_3d = VaeImageProcessorLDM3D()
 
     # MIDAS depth estimation
-    processor = DPTImageProcessor.from_pretrained("Intel/dpt-large")
-    midas = DPTForDepthEstimation.from_pretrained("Intel/dpt-large").to(accelerator.device)
+    midas_model = MiDaSInference(model_type="dpt_hybrid").to(accelerator.device)
 
-    def estimate_depth(images):
-        # Transform back to image to estimate depth, should be a better way to do this (gpu -> cpu -> gpu)
-        images = (images / 2.0) + 0.5 # invert normalize
-        images=  [(image.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8) for image in images]
-        images = [Image.fromarray(image) for image in images]        
-        inputs = processor(images=images, return_tensors="pt").to(accelerator.device)
-        
+    
+    def estimate_depth(images):  
+
         with torch.no_grad():
-            outputs = midas(**inputs)
-            predicted_depth = outputs.predicted_depth
+            prediction = midas_model(images.to(accelerator.device))
 
-        # interpolate to original size
-        prediction = torch.nn.functional.interpolate(
-            predicted_depth.unsqueeze(1),
-            size=images[0].size[::-1],
-            mode="bicubic",
-            align_corners=False,
-        )
+            prediction = torch.nn.functional.interpolate(
+                prediction.unsqueeze(1),
+                size=images[0].shape[1:3],
+                mode="bicubic",
+                align_corners=False,
+            )
         
         # Normalize again
         prediction = (prediction - prediction.min()) / (prediction.max() - prediction.min() ) # Does it need to be -1 to 1?
+        
         prediction = 2* (prediction - 0.5 )
+        
         return prediction
 
     # Mask generator
