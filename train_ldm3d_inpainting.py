@@ -933,7 +933,7 @@ def main():
         # interpolate to original size
         prediction = torch.nn.functional.interpolate(
             predicted_depth.unsqueeze(1),
-            size=image.size[::-1],
+            size=images[0].size[::-1],
             mode="bicubic",
             align_corners=False,
         )
