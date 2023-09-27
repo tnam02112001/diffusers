@@ -922,7 +922,7 @@ def main():
     def estimate_depth(images):  
 
         with torch.no_grad():
-            prediction = midas_model(images.to(accelerator.device))
+            prediction = midas_model(images.float().to(accelerator.device))
 
             prediction = torch.nn.functional.interpolate(
                 prediction.unsqueeze(1),
@@ -935,7 +935,7 @@ def main():
         prediction = (prediction - prediction.min()) / (prediction.max() - prediction.min() ) # Does it need to be -1 to 1?
         
         prediction = 2* (prediction - 0.5 )
-        
+
         return prediction
 
     # Mask generator
