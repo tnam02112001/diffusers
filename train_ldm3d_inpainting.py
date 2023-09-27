@@ -928,7 +928,7 @@ def main():
         # Transform back to image to estimate depth, should be a better way to do this (gpu -> cpu -> gpu)
         images = (images / 2.0) + 0.5 # invert normalize
         images=  [(image.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8) for image in images]
-        input_batch = torch.stack([transform_midas(image)[0] for image in images]).to("cuda:0")
+        input_batch = torch.stack([transform_midas(image)[0] for image in images]).to(accelerator.device)
         
         with torch.no_grad():
             prediction = midas(input_batch)
