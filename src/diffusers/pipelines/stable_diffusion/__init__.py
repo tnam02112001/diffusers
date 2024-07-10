@@ -41,6 +41,7 @@ else:
     _import_structure["pipeline_stable_diffusion_instruct_pix2pix"] = ["StableDiffusionInstructPix2PixPipeline"]
     _import_structure["pipeline_stable_diffusion_latent_upscale"] = ["StableDiffusionLatentUpscalePipeline"]
     _import_structure["pipeline_stable_diffusion_ldm3d"] = ["StableDiffusionLDM3DPipeline"]
+    _import_structure["pipeline_stable_diffusion_ldm3d_inpaint"] = ["StableDiffusionLDM3DInpaintPipeline"]
     _import_structure["pipeline_stable_diffusion_model_editing"] = ["StableDiffusionModelEditingPipeline"]
     _import_structure["pipeline_stable_diffusion_panorama"] = ["StableDiffusionPanoramaPipeline"]
     _import_structure["pipeline_stable_diffusion_paradigms"] = ["StableDiffusionParadigmsPipeline"]
@@ -50,7 +51,7 @@ else:
     _import_structure["pipeline_stable_unclip_img2img"] = ["StableUnCLIPImg2ImgPipeline"]
     _import_structure["safety_checker"] = ["StableDiffusionSafetyChecker"]
     _import_structure["stable_unclip_image_normalizer"] = ["StableUnCLIPImageNormalizer"]
-    _import_structure["pipeline_stable_diffusion_ldm3d_inpaint.py"] = ["StableDiffusionLDM3DInpaintPipeline"]
+    
 try:
     if not (is_transformers_available() and is_torch_available() and is_transformers_version(">=", "4.25.0")):
         raise OptionalDependencyNotAvailable()
