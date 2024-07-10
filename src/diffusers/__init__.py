@@ -243,7 +243,6 @@ else:
             "StableDiffusionImageVariationPipeline",
             "StableDiffusionImg2ImgPipeline",
             "StableDiffusionInpaintPipeline",
-            "StableDiffusionLDM3DInpaintPipeline",
             "StableDiffusionInpaintPipelineLegacy",
             "StableDiffusionInstructPix2PixPipeline",
             "StableDiffusionLatentUpscalePipeline",
@@ -282,6 +281,7 @@ else:
             "WuerstchenCombinedPipeline",
             "WuerstchenDecoderPipeline",
             "WuerstchenPriorPipeline",
+            "StableDiffusionLDM3DInpaintPipeline"
         ]
     )
 
