@@ -487,19 +487,50 @@ class VaeImageProcessorLDM3D(VaeImageProcessor):
 
         return pil_images
 
-    def preprocess_depth(self, image, height=None, width=None):
-        image = np.array(image)
-        image = image / 65535.0
-        image = image[None, ...]
+    # def preprocess_depth(self, image, height=None, width=None):
+    #     image = np.array(image)
+    #     image = image / 65535.0
+    #     image = image[None, ...]
 
-        if self.config.do_resize:
-            height, width = self.get_default_height_width(image, height, width)
-            image = self.resize(image, height, width)
+    #     if self.config.do_resize:
+    #         height, width = self.get_default_height_width(image, height, width)
+    #         image = self.resize(image, height, width)
         
-        image = 2* (image - 0.5 )
-        image = torch.from_numpy(image.transpose(0, 3, 1, 2))
+    #     image = 2* (image - 0.5 )
+    #     image = torch.from_numpy(image.transpose(0, 3, 1, 2))
 
-        return image        
+    #     return image        
+
+    def preprocess_depth(self, image, height=None, width=None):
+        if isinstance(image, PIL.Image.Image):
+            image = np.array(image)
+            image = image / 65535.0 if image.dtype == np.uint16 else image / 255.0
+            image = image[None, ...]
+
+            if self.config.do_resize:
+                height, width = self.get_default_height_width(image, height, width)
+                image = self.resize(image, height, width)
+            
+            image = 2* (image - 0.5 )
+            image = torch.from_numpy(image.transpose(0, 3, 1, 2))
+
+        elif isinstance(image, np.ndarray):
+            image = image / 65535.0 if image.dtype == np.uint16 else image / 255.0
+            if self.config.do_resize:
+                height, width = self.get_default_height_width(image, height, width)
+                image = self.resize(image, height, width)
+            image = 2* (image - 0.5 )
+            image = np.expand_dims(image, 0) if image.ndim < 4 else image
+            image = image.transpose(0, 3, 1, 2) if image.shape[-1] <= 3 else image
+            image = torch.from_numpy(image)
+        else:
+            ## torch.tensor
+            if self.config.do_resize:
+                height, width = self.get_default_height_width(image, height, width)
+                image = self.resize(image, height, width)
+            image = 2* (image - 0.5 )
+
+        return image  
 
     def postprocess(
         self,
