@@ -243,6 +243,7 @@ else:
             "StableDiffusionImageVariationPipeline",
             "StableDiffusionImg2ImgPipeline",
             "StableDiffusionInpaintPipeline",
+            "StableDiffusionLDM3DInpaintPipeline"
             "StableDiffusionInpaintPipelineLegacy",
             "StableDiffusionInstructPix2PixPipeline",
             "StableDiffusionLatentUpscalePipeline",
