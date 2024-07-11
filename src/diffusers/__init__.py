@@ -247,6 +247,7 @@ else:
             "StableDiffusionInstructPix2PixPipeline",
             "StableDiffusionLatentUpscalePipeline",
             "StableDiffusionLDM3DPipeline",
+            "StableDiffusionLDM3DInpaintPipeline",
             "StableDiffusionModelEditingPipeline",
             "StableDiffusionPanoramaPipeline",
             "StableDiffusionParadigmsPipeline",
@@ -281,7 +282,7 @@ else:
             "WuerstchenCombinedPipeline",
             "WuerstchenDecoderPipeline",
             "WuerstchenPriorPipeline",
-            "StableDiffusionLDM3DInpaintPipeline"
+           
         ]
     )
 
@@ -586,6 +587,7 @@ if TYPE_CHECKING:
             StableDiffusionInstructPix2PixPipeline,
             StableDiffusionLatentUpscalePipeline,
             StableDiffusionLDM3DPipeline,
+            StableDiffusionLDM3DInpaintPipeline,
             StableDiffusionModelEditingPipeline,
             StableDiffusionPanoramaPipeline,
             StableDiffusionParadigmsPipeline,
