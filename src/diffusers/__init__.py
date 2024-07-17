@@ -250,7 +250,7 @@ else:
             "StableDiffusionLDM3DInpaintPipeline",
             "StableDiffusionModelEditingPipeline",
             "StableDiffusionPanoramaPipeline",
-            "StableDiffusionPanoramaInpaintPipeline"
+            "StableDiffusionPanoramaInpaintPipeline",
             "StableDiffusionParadigmsPipeline",
             "StableDiffusionPipeline",
             "StableDiffusionPipelineSafe",
