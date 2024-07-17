@@ -1006,7 +1006,7 @@ class StableDiffusionPanoramaInpaintPipeline(DiffusionPipeline, TextualInversion
                     
 
                     if num_channels_unet == 9:
-                        latent_model_input = torch.cat([latent_model_input, masks_for_view, masked_image_latents_for_view])
+                        latent_model_input = torch.cat([latent_model_input, masks_for_view, masked_image_latents_for_view], dim=1)
             
 
 
