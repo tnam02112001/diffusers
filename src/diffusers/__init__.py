@@ -250,6 +250,7 @@ else:
             "StableDiffusionLDM3DInpaintPipeline",
             "StableDiffusionModelEditingPipeline",
             "StableDiffusionPanoramaPipeline",
+            "StableDiffusionPanoramaInpaintPipeline"
             "StableDiffusionParadigmsPipeline",
             "StableDiffusionPipeline",
             "StableDiffusionPipelineSafe",
@@ -590,6 +591,7 @@ if TYPE_CHECKING:
             StableDiffusionLDM3DInpaintPipeline,
             StableDiffusionModelEditingPipeline,
             StableDiffusionPanoramaPipeline,
+            StableDiffusionPanoramaInpaintPipeline,
             StableDiffusionParadigmsPipeline,
             StableDiffusionPipeline,
             StableDiffusionPipelineSafe,

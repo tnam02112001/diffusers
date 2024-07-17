@@ -44,6 +44,7 @@ else:
     _import_structure["pipeline_stable_diffusion_ldm3d_inpaint"] = ["StableDiffusionLDM3DInpaintPipeline"]
     _import_structure["pipeline_stable_diffusion_model_editing"] = ["StableDiffusionModelEditingPipeline"]
     _import_structure["pipeline_stable_diffusion_panorama"] = ["StableDiffusionPanoramaPipeline"]
+    _import_structure["pipeline_stable_diffusion_panorama_inpainting"] = ["StableDiffusionPanoramaInpaintPipeline"]
     _import_structure["pipeline_stable_diffusion_paradigms"] = ["StableDiffusionParadigmsPipeline"]
     _import_structure["pipeline_stable_diffusion_sag"] = ["StableDiffusionSAGPipeline"]
     _import_structure["pipeline_stable_diffusion_upscale"] = ["StableDiffusionUpscalePipeline"]
@@ -149,6 +150,7 @@ if TYPE_CHECKING:
         from .pipeline_stable_diffusion_ldm3d_inpaint import StableDiffusionLDM3DInpaintPipeline
         from .pipeline_stable_diffusion_model_editing import StableDiffusionModelEditingPipeline
         from .pipeline_stable_diffusion_panorama import StableDiffusionPanoramaPipeline
+        from .pipeline_stable_diffusion_panorama_inpainting import StableDiffusionPanoramaInpaintPipeline
         from .pipeline_stable_diffusion_paradigms import StableDiffusionParadigmsPipeline
         from .pipeline_stable_diffusion_sag import StableDiffusionSAGPipeline
         from .pipeline_stable_diffusion_upscale import StableDiffusionUpscalePipeline
