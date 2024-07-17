@@ -537,6 +537,21 @@ class StableDiffusionPanoramaInpaintPipeline(DiffusionPipeline, TextualInversion
 
         return outputs
 
+    
+    def _encode_vae_image(self, image: torch.Tensor, generator: torch.Generator):
+        if isinstance(generator, list):
+            image_latents = [
+                self.vae.encode(image[i : i + 1]).latent_dist.sample(generator=generator[i])
+                for i in range(image.shape[0])
+            ]
+            image_latents = torch.cat(image_latents, dim=0)
+        else:
+            image_latents = self.vae.encode(image).latent_dist.sample(generator=generator)
+
+        image_latents = self.vae.config.scaling_factor * image_latents
+
+        return image_latents
+    
     def get_views(self, panorama_height, panorama_width, window_size=64, stride=8, circular_padding=False):
         # Here, we define the mappings F_i (see Eq. 7 in the MultiDiffusion paper https://arxiv.org/abs/2302.08113)
         # if panorama's height/width < window_size, num_blocks of height/width should return 1
